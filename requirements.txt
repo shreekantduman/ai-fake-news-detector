@@ -1,0 +1,10 @@
+flask
+scikit-learn
+pandas
+numpy
+deep-translator
+pytesseract
+pillow
+requests
+beautifulsoup4
+openpyxl

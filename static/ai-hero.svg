@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="180" viewBox="0 0 300 180">
+  <rect width="100%" height="100%" rx="12" fill="#e8f0ff"/>
+  <text x="20" y="40" font-family="Arial" font-size="22" fill="#0d47a1">AI • Fake News Detection</text>
+  <text x="20" y="70" font-family="Arial" font-size="12" fill="#333">Translate → OCR → Predict → Cross-check</text>
+</svg>
