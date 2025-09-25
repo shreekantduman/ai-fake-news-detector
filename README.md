@@ -1,25 +1,103 @@
-# Fake News Detector — Full Enhanced Package
+AI Fake News Detector
 
-Features:
-- Improved ML model (LinearSVC, TF-IDF with ngrams, balanced)
-- OCR support (upload screenshots) using Tesseract
-- Translation using deep-translator (GoogleTranslator)
-- Authenticity scanner: Google News RSS + optional NewsAPI integration (set NEWSAPI_KEY env var)
+AI Fake News Detector is a web application that uses OCR, NLP, Machine Learning, and NLI Fact-Checking to detect whether a piece of news is real or fake. The app can handle text input, news screenshots, and supports translation from any language to English.
 
-Setup:
-1. Create venv and install requirements:
-   python -m venv venv
-   source venv/bin/activate   # or venv\Scripts\activate on Windows
-   pip install -r requirements.txt
-2. Place your BharatFakeNewsKosh.xlsx in project root
-3. Train model:
-   python train_model.py --input BharatFakeNewsKosh.xlsx --out-model model.pkl --out-vectorizer vectorizer.pkl
-4. (Optional) Set NEWSAPI_KEY environment variable to enable NewsAPI results
-5. Run the app:
-   python app.py
-6. Open http://127.0.0.1:5000
+Features
 
-Notes:
-- Tesseract OCR: you must install the Tesseract binary on your system for pytesseract to work.
-  - Windows: install from https://github.com/tesseract-ocr/tesseract
-  - Ubuntu: sudo apt-get install tesseract-ocr
+Text Input: Paste news text directly.
+
+OCR Support: Upload images/screenshots of news for automatic text extraction.
+
+Translation: Automatically translates non-English news to English.
+
+ML Prediction: Uses a pre-trained machine learning model to predict fake or real news.
+
+NLI Fact-Checking: Uses Natural Language Inference (NLI) models to cross-check facts dynamically with live sources (Wikipedia).
+
+Entity Extraction: Extracts important entities such as persons, organizations, positions, and locations.
+
+Automatic NLI Server Wait: Ensures the NLI model is loaded before processing requests.
+
+Modern UI: Clean interface with cards, AI GIFs, and responsive layout.
+
+Screenshots
+
+
+Example GIF showing AI analysis in action.
+
+Installation
+
+Clone the repository:
+
+git clone https://github.com/YourUsername/ai-fake-news-detector.git
+cd ai-fake-news-detector
+
+
+Create a virtual environment:
+
+python -m venv venv
+
+
+Activate the virtual environment:
+
+# PowerShell
+venv\Scripts\Activate.ps1
+
+# CMD
+venv\Scripts\activate.bat
+
+
+Install dependencies:
+
+pip install -r requirements.txt
+
+
+Download SpaCy English model:
+
+python -m spacy download en_core_web_sm
+
+Usage
+
+Run the NLI server:
+
+python nli_server.py
+
+
+Run the Flask web app:
+
+python app.py
+
+
+Open a browser and go to:
+
+http://127.0.0.1:5000
+
+
+Paste news text or upload a screenshot to analyze.
+
+Project Structure
+fake-news/
+│
+├─ app.py             # Main Flask web app
+├─ nli_server.py      # NLI microservice
+├─ templates/
+│   └─ index.html     # HTML template
+├─ static/
+│   ├─ style.css      # CSS styling
+│   └─ ai.gif         # AI animation
+├─ uploads/           # Folder for OCR uploads (ignored in Git)
+├─ model.pkl          # Optional ML model
+├─ vectorizer.pkl     # Optional ML vectorizer
+├─ requirements.txt   # Python dependencies
+└─ README.md          # Project documentation
+
+Notes
+
+Large ML and NLI models may take time to load initially, especially on CPU.
+
+NLI microservice must be running before the Flask app can perform fact-checks.
+
+For Windows users with limited C: drive space, set HuggingFace cache to another drive:
+
+set HF_HOME=D:\huggingface_cache
+set TRANSFORMERS_CACHE=D:\huggingface_cache
