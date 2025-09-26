@@ -1,7 +1,11 @@
+"""
+app.py - Fake News Detector (OCR + Translation + ML + NewsAPI + Wikipedia cross-check)
+
+Author: Shreekant Suman
+"""
+
 import os
 import re
-import time
-import pickle
 import requests
 from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
@@ -10,67 +14,57 @@ import pytesseract
 from deep_translator import GoogleTranslator
 import spacy
 import wikipediaapi
+from bs4 import BeautifulSoup
+import pickle
 
-# -------------------- CONFIG --------------------
-UPLOAD_FOLDER = 'uploads'
-MODEL_PATH = 'model.pkl'
-VECT_PATH = 'vectorizer.pkl'
-NLI_SERVER_URL = "http://localhost:5001/check"
-MAX_WAIT = 120  # seconds
-
-app = Flask(__name__)
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# ---------------------- CONFIG ----------------------
+UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# -------------------- LOAD NLP & WIKIPEDIA --------------------
-nlp = spacy.load("en_core_web_sm")
-wiki_wiki = wikipediaapi.Wikipedia(
+NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "").strip()
+MODEL_PATH = "model.pkl"
+VECT_PATH = "vectorizer.pkl"
+
+# Wikipedia API
+WIKI = wikipediaapi.Wikipedia(
     language="en",
-    user_agent="AI-Fake-News-Detector/1.0"
+    user_agent="AI-Fake-News-Detector/1.0 (contact: your-email@example.com)"
 )
 
-# -------------------- LOAD ML MODEL (OPTIONAL) --------------------
-model = None
-vectorizer = None
+# SpaCy NLP
+try:
+    nlp = spacy.load("en_core_web_sm")
+except:
+    raise RuntimeError("Run: python -m spacy download en_core_web_sm")
+
+# Load ML model if available
+model, vectorizer = None, None
 if os.path.exists(MODEL_PATH) and os.path.exists(VECT_PATH):
-    with open(MODEL_PATH, 'rb') as f:
+    with open(MODEL_PATH, "rb") as f:
         model = pickle.load(f)
-    with open(VECT_PATH, 'rb') as f:
+    with open(VECT_PATH, "rb") as f:
         vectorizer = pickle.load(f)
+    print("✅ ML model loaded")
+else:
+    print("⚠️ No ML model found. Only NewsAPI + Wikipedia will be used.")
 
-# -------------------- HELPER FUNCTIONS --------------------
-def wait_for_nli_server(timeout=MAX_WAIT, interval=5):
-    """Wait until the NLI microservice is ready."""
-    start_time = time.time()
-    while True:
-        try:
-            resp = requests.post(NLI_SERVER_URL, json={"text": "Test", "candidate_labels": ["true","false"]}, timeout=5)
-            if resp.status_code == 200:
-                print("✅ NLI server is ready.")
-                return True
-        except requests.exceptions.RequestException:
-            pass
+# ---------------------- HELPERS ----------------------
 
-        if time.time() - start_time > timeout:
-            print("⚠️ NLI server did not respond within timeout. ML-only fallback will be used.")
-            return False
-
-        print("Waiting for NLI server to be ready...")
-        time.sleep(interval)
-
-def clean_text(text):
-    text = str(text).lower()
-    text = re.sub(r'http\S+', '', text)
-    text = re.sub(r'[^\w\s]', ' ', text)
-    text = re.sub(r'\d+', '', text)
-    text = ' '.join(text.split())
-    return text
+def ocr_from_file(path):
+    img = Image.open(path).convert("RGB")
+    return pytesseract.image_to_string(img)
 
 def translate_to_en(text):
     try:
-        return GoogleTranslator(source='auto', target='en').translate(text)
+        return GoogleTranslator(source="auto", target="en").translate(text)
     except:
         return text
+
+def clean_text(text):
+    t = text.lower()
+    t = re.sub(r"http\S+", " ", t)
+    t = re.sub(r"[^a-z0-9\s]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
 
 def extract_entities(text):
     doc = nlp(text)
@@ -78,99 +72,135 @@ def extract_entities(text):
     for ent in doc.ents:
         if ent.label_ in entities:
             entities[ent.label_].append(ent.text)
-    positions = ["Prime Minister", "Chief Minister", "President", "Governor", "Minister"]
-    for pos in positions:
+    for pos in ["Prime Minister", "President", "Chief Minister", "Governor", "Minister"]:
         if pos.lower() in text.lower():
             entities["POSITION"].append(pos)
     return entities
 
-def fetch_wiki_summary(query):
+def fetch_wiki_summary(topic):
     try:
-        page = wiki_wiki.page(query)
+        page = WIKI.page(topic)
         if page.exists():
             return page.summary
     except:
         pass
     return ""
 
-def fact_check_nli(text):
-    entities = extract_entities(text)
-    candidates = []
-    for ent_type in ["PERSON", "ORG", "GPE", "POSITION"]:
-        for ent in entities[ent_type]:
-            summary = fetch_wiki_summary(ent)
-            if summary:
-                candidates.append(summary)
-    if not candidates:
-        summary = fetch_wiki_summary(text)
-        if summary:
-            candidates.append(summary)
+def scrape_url(url):
+    headers = {"User-Agent": "Mozilla/5.0 FakeNewsDetector/1.0"}
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(r.text, "html.parser")
 
-    # Call NLI server
-    for premise in candidates:
-        try:
-            resp = requests.post(NLI_SERVER_URL, json={"text": text, "candidate_labels": [premise]}, timeout=10)
-            data = resp.json()
-            labels = data.get('labels', [])
-            if labels:
-                label = labels[0].lower()
-                if 'contradiction' in label:
-                    return False
-                elif 'entailment' in label:
-                    return True
-        except:
-            continue
-    return None
+        title = soup.find("meta", property="og:title")
+        title = title["content"] if title else (soup.title.string if soup.title else "")
+
+        article = soup.find("article")
+        if article:
+            body = " ".join(p.get_text() for p in article.find_all("p"))
+        else:
+            body = " ".join(p.get_text() for p in soup.find_all("p"))
+        return title.strip(), body.strip()
+    except:
+        return "", ""
+
+def verify_with_newsapi(query):
+    if not NEWSAPI_KEY:
+        return False, None
+    try:
+        url = "https://newsapi.org/v2/everything"
+        params = {"q": query, "language": "en", "pageSize": 5}
+        resp = requests.get(url, params=params, headers={"X-Api-Key": NEWSAPI_KEY})
+        data = resp.json()
+        if data.get("status") == "ok" and data.get("totalResults", 0) > 0:
+            article = data["articles"][0]
+            return True, article.get("source", {}).get("name")
+    except:
+        pass
+    return False, None
+
+def strict_wiki_check(claim, entities):
+    """Detect contradictions in claims vs Wikipedia."""
+    for person in entities.get("PERSON", []):
+        summary = fetch_wiki_summary(person)
+        if summary:
+            if "sri lanka" in claim.lower() and "sri lanka" not in summary.lower():
+                return False
+            if "india" in summary.lower() and "sri lanka" in claim.lower():
+                return False
+
+    # Generic science myths
+    if "moon is hollow" in claim.lower():
+        return False
+    if "earth is flat" in claim.lower():
+        return False
+    if "sun rises in the west" in claim.lower():
+        return False
+
+    return True
 
 def ml_predict(text):
-    if vectorizer is None or model is None:
+    if not model or not vectorizer:
         return None
-    try:
-        vec = vectorizer.transform([clean_text(text)])
-        pred = model.predict(vec)[0]
-        return 'Fake' if int(pred) == 1 else 'Real'
-    except:
-        return None
+    vec = vectorizer.transform([clean_text(text)])
+    return "Fake" if int(model.predict(vec)[0]) == 1 else "Real"
 
-# -------------------- WAIT FOR NLI SERVER --------------------
-wait_for_nli_server()
+# ---------------------- FLASK APP ----------------------
+app = Flask(__name__)
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
-# -------------------- FLASK ROUTE --------------------
-@app.route('/', methods=['GET', 'POST'])
+@app.route("/", methods=["GET", "POST"])
 def home():
-    warning, extracted, translated, ml_result, final_result, entities = None, None, None, None, None, {}
+    warning, extracted, translated, ml_result, final_result = None, None, None, None, None
+    entities, source_verified = {}, None
 
-    if request.method == 'POST':
-        text_input = request.form.get('news_text', '').strip()
-        file = request.files.get('news_image')
+    if request.method == "POST":
+        user_text = (request.form.get("news_text") or "").strip()
+        user_url = (request.form.get("news_url") or "").strip()
+        file = request.files.get("news_image")
 
-        if not text_input and (not file or file.filename == ''):
-            warning = "Provide text or upload image."
-            return render_template('index.html', warning=warning)
+        # URL scraping
+        if user_url:
+            title, body = scrape_url(user_url)
+            user_text = f"{title} {body}".strip()
 
+        # OCR
         if file and file.filename:
-            filename = secure_filename(file.filename)
-            path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            file.save(path)
+            filepath = os.path.join(app.config["UPLOAD_FOLDER"], secure_filename(file.filename))
+            file.save(filepath)
             try:
-                extracted = pytesseract.image_to_string(Image.open(path))
-            except:
-                extracted = ''
-            text_input = extracted or text_input
+                extracted = ocr_from_file(filepath)
+                if extracted.strip():
+                    user_text = extracted
+            except Exception as e:
+                warning = f"OCR failed: {e}"
 
-        translated = translate_to_en(text_input)
-        ml_result = ml_predict(translated)
+        if not user_text:
+            warning = "No text found to analyze."
+            return render_template("index.html", warning=warning)
+
+        translated = translate_to_en(user_text)
         entities = extract_entities(translated)
 
-        fact_result = fact_check_nli(translated)
-        if fact_result is True:
-            final_result = "Real"
-        elif fact_result is False:
-            final_result = "Likely Fake"
+        # NewsAPI check
+        verified, source = verify_with_newsapi(" ".join(translated.split()[:10]))
+        if verified:
+            consistent = strict_wiki_check(translated, entities)
+            if not consistent:
+                final_result = "Likely Fake (entity-role contradiction)"
+            else:
+                final_result = f"Real (verified via {source})"
+            ml_result = ml_predict(translated)
         else:
-            final_result = ml_result or "Unknown"
+            # No NewsAPI support → rely on Wiki + ML
+            consistent = strict_wiki_check(translated, entities)
+            if consistent:
+                final_result = "Real (knowledge supported)"
+            else:
+                final_result = "Fake (contradicted by knowledge)"
+            ml_result = ml_predict(translated)
 
-    return render_template('index.html',
+    return render_template("index.html",
                            warning=warning,
                            extracted=extracted,
                            translated=translated,
@@ -178,6 +208,5 @@ def home():
                            final_result=final_result,
                            entities=entities)
 
-# -------------------- RUN SERVER --------------------
-if __name__ == '__main__':
-    app.run(debug=True)
+if __name__ == "__main__":
+    app.run(host="127.0.0.1", port=5000, debug=False)

@@ -1,72 +1,66 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>AI Fake News Detector</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+  <meta charset="UTF-8">
+  <title>AI FACT CHECK: NEW MEDIA/SOCIAL MEDIA</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>📰 AI Fake News Detector</h1>
-            <p>Detect fake news using AI, NLI fact-checking & ML predictions</p>
-        </header>
+  <div class="container">
+    <h1>📰 AI FACT CHECK: NEW MEDIA/SOCIAL MEDIA</h1>
+    <p>Check whether a news article, statement, or screenshot is Fake or Real.</p>
 
-        {% if warning %}
-            <div class="alert">{{ warning }}</div>
-        {% endif %}
+    <!-- Input Form -->
+    <form method="POST" enctype="multipart/form-data" class="form-box">
+      <label>Paste News Text:</label>
+      <textarea name="news_text" rows="3" placeholder="Enter news text here..."></textarea>
 
-        <form method="POST" enctype="multipart/form-data">
-            <div class="form-group">
-                <label for="news_text">Paste News Text:</label>
-                <textarea name="news_text" id="news_text" placeholder="Enter news text here...">{{ request.form.news_text }}</textarea>
-            </div>
+      <label>Or Enter News URL:</label>
+      <input type="url" name="news_url" placeholder="https://example.com/news-article">
 
-            <div class="form-group">
-                <label for="news_image">Or Upload News Image (OCR):</label>
-                <input type="file" name="news_image" id="news_image" accept="image/*">
-            </div>
+      <label>Or Upload Screenshot:</label>
+      <input type="file" name="news_image" accept="image/*">
 
-            <button type="submit">Analyze News</button>
-        </form>
+      <button type="submit">Analyze</button>
+    </form>
 
-        {% if translated %}
-        <div class="results">
-            <div class="card">
-                <h2>Translated Text (English)</h2>
-                <p>{{ translated }}</p>
-            </div>
+    {% if warning %}
+      <div class="warning">{{ warning }}</div>
+    {% endif %}
 
-            <div class="card">
-                <h2>ML Prediction</h2>
-                <p>{{ ml_result if ml_result else 'Not Available' }}</p>
-            </div>
+    {% if translated %}
+      <div class="results">
+        <h2>🔍 Analysis Results</h2>
 
-            <div class="card">
-                <h2>Fact-Check Result</h2>
-                <p>{{ final_result if final_result else 'Unknown' }}</p>
-            </div>
-
-            <div class="card">
-                <h2>Extracted Entities</h2>
-                {% if entities %}
-                    <ul>
-                        {% for key, vals in entities.items() %}
-                            <li><strong>{{ key }}:</strong> {{ vals|join(', ') if vals else 'None' }}</li>
-                        {% endfor %}
-                    </ul>
-                {% else %}
-                    <p>None detected</p>
-                {% endif %}
-            </div>
+        <div class="card">
+          <h3>Translated Text (English)</h3>
+          <p>{{ translated }}</p>
         </div>
-        {% endif %}
 
-        <footer>
-            <p>Powered by AI | OCR | ML | NLI Fact-Checking</p>
-            <img src="{{ url_for('static', filename='ai.gif') }}" alt="AI Animation" class="footer-gif">
-        </footer>
-    </div>
+        <div class="card">
+          <h3>ML Prediction</h3>
+          <p>{{ ml_result or 'Not available' }}</p>
+        </div>
+
+        <div class="card highlight">
+          <h3>Fact-Check Result</h3>
+          <p>{{ final_result }}</p>
+        </div>
+
+        {% if entities %}
+          <div class="card">
+            <h3>Extracted Entities</h3>
+            <ul>
+              {% for key, vals in entities.items() %}
+                {% if vals %}
+                  <li><strong>{{ key }}:</strong> {{ ", ".join(vals) }}</li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          </div>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
 </body>
 </html>
