@@ -1,0 +1,199 @@
+{\rtf1\fbidis\ansi\ansicpg1252\deff0\nouicompat\deflang16393{\fonttbl{\f0\fnil\fcharset0 Calibri;}{\f1\fnil Calibri;}{\f2\fnil\fcharset1 Segoe UI Symbol;}{\f3\fnil\fcharset1 Segoe UI Emoji;}{\f4\fnil\fcharset1 Cambria Math;}}
+{\colortbl ;\red0\green0\blue255;}
+{\*\generator Riched20 10.0.19041}{\*\mmathPr\mmathFont4\mwrapIndent1440 }\viewkind4\uc1 
+\pard\sa200\sl276\slmult1\f0\fs22\lang9 Lines 1\f1\endash 5 \emdash  file docstring\par
+1\endash 5: """ ... """\par
+A module-level docstring describing the script: name, short description (Fake News Detector combining OCR, translation, ML, NewsAPI, Wikipedia, optional NLI) and the author. Pure documentation.\par
+\par
+Lines 7\endash 18 \emdash  imports\par
+7: import os \emdash  OS utilities (file paths, env vars).\par
+8: import re \emdash  regular expressions for text cleaning.\par
+9: import requests \emdash  HTTP requests library used to call NewsAPI, scrape pages, and NLI server.\par
+10: from flask import Flask, render_template, request \emdash  Flask web framework and functions to render templates and access request data.\par
+11: from werkzeug.utils import secure_filename \emdash  utility to sanitize uploaded filenames.\par
+12: from PIL import Image \emdash  Pillow image library to open/manipulate images for OCR.\par
+13: import pytesseract \emdash  Python wrapper for Tesseract OCR engine (extract text from images).\par
+14: from deep_translator import GoogleTranslator \emdash  translator utility to translate text to English.\par
+15: import spacy \emdash  SpaCy NLP library for entity extraction.\par
+16: import wikipediaapi \emdash  lightweight Wikipedia API wrapper to fetch page summaries.\par
+17: from bs4 import BeautifulSoup \emdash  HTML parser for scraping web pages.\par
+18: import pickle \emdash  serialization library to load saved ML model and vectorizer.\par
+\par
+Lines 20\endash 27 \emdash  configuration / constants\par
+20: comment separator.\par
+21: UPLOAD_FOLDER = "uploads" \emdash  directory name where uploads are stored.\par
+22: os.makedirs(UPLOAD_FOLDER, exist_ok=True) \emdash  create the uploads folder if it doesn't exist (no error if it already exists).\par
+24: NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "").strip() \emdash  read NewsAPI key from environment variable (empty string if not set), trimmed.\par
+25: MODEL_PATH = "model.pkl" \emdash  file path for saved ML model.\par
+26: VECT_PATH = "vectorizer.pkl" \emdash  file path for saved vectorizer.\par
+27: NLI_SERVER = "{{\field{\*\fldinst{HYPERLINK http://127.0.0.1:5001/check }}{\fldrslt{http://127.0.0.1:5001/check\ul0\cf0}}}}\f1\fs22 " \emdash  URL of optional NLI (natural language inference) server to query for contradiction checks.\par
+\par
+Lines 29\endash 33 \emdash  Wikipedia API client\par
+29: comment.\par
+30\endash 33: instantiate a wikipediaapi.Wikipedia object named WIKI, specifying language "en" and a custom user_agent string (good practice when calling remote APIs).\par
+\par
+Lines 35\endash 39 \emdash  SpaCy model load\par
+35: comment.\par
+36\endash 39: try: nlp = spacy.load("en_core_web_sm") except: raise RuntimeError(...)\par
+Attempt to load SpaCy English model en_core_web_sm into nlp. If not installed, raise a RuntimeError instructing the user to download the model via python -m spacy download en_core_web_sm.\par
+\par
+Lines 41\endash 50 \emdash  load ML model (optional)\par
+41: comment.\par
+42: model, vectorizer = None, None \emdash  initialize variables; will remain None if saved artifacts missing.\par
+43: if os.path.exists(MODEL_PATH) and os.path.exists(VECT_PATH): \emdash  check both model files exist.\par
+44\endash 47: open and pickle.load them into model and vectorizer.\par
+48: print("\f2\u9989?\f1  \f0 ML model loaded") \f1\emdash  log success.\par
+49\endash 50: else: print("\f3\u9888?\u-497?\f1  \f0 No ML model found. Only NewsAPI + Wikipedia will be used.") \f1\emdash  log fallback when ML artifacts are absent.\par
+\par
+Lines 52\endash 56 \emdash  helper: OCR\par
+52: comment separator.\par
+54: def ocr_from_file(path): \emdash  define function to perform OCR on an image file.\par
+55: img = Image.open(path).convert("RGB") \emdash  open image and ensure RGB mode.\par
+56: return pytesseract.image_to_string(img) \emdash  return text extracted by pytesseract.\par
+\par
+Lines 58\endash 63 \emdash  helper: translate\par
+58: def translate_to_en(text): \emdash  define translator helper.\par
+59\endash 62: Try to use GoogleTranslator(source="auto", target="en") to translate; if any exception occurs, return the original text unchanged. (This prevents the app from failing if translation fails.)\par
+\par
+Lines 64\endash 68 \emdash  helper: clean text\par
+64: def clean_text(text): \emdash  prepares text for ML/vectorizer.\par
+65: t = text.lower() \emdash  lowercase.\par
+66: t = re.sub(r"http\\S+", " ", t) \emdash  remove URLs.\par
+67: t = re.sub(r"[^a-z0-9\\s]", " ", t) \emdash  remove non-alphanumeric characters (keeps spaces).\par
+68: return re.sub(r"\\s+", " ", t).strip() \emdash  collapse repeated whitespace and trim ends.\par
+\par
+Lines 70\endash 79 \emdash  helper: extract named entities\par
+70: def extract_entities(text): \emdash  uses SpaCy to extract entities.\par
+71: doc = nlp(text) \emdash  run SpaCy pipeline.\par
+72: entities = \{"PERSON": [], "ORG": [], "GPE": [], "POSITION": []\} \emdash  prepare a dict to collect specific entity types plus an extra "POSITION" list (for roles).\par
+73\endash 76: iterate doc.ents (SpaCy entities); if the entity label (like "PERSON", "ORG", "GPE") is in our dict, append the entity text.\par
+76\endash 78: a small heuristic: check for role keywords ("Prime Minister", "President", etc.) by lowercasing and testing their presence in the free text; if found, add to entities["POSITION"].\par
+79: return entities \emdash  return the dictionary.\par
+\par
+Lines 81\endash 88 \emdash  helper: fetch Wikipedia summary\par
+81: def fetch_wiki_summary(topic): \emdash  get Wikipedia page summary for topic.\par
+82\endash 86: try to get page = WIKI.page(topic) and if page.exists() return page.summary.\par
+86\endash 87: except any error, silently pass.\par
+88: if not found or on error, return empty string "".\par
+\par
+Lines 90\endash 106 \emdash  helper: scrape a URL\par
+90: def scrape_url(url): \emdash  scrape title and body text from a URL.\par
+91: headers = \{"User-Agent": "Mozilla/5.0 FakeNewsDetector/1.0"\} \emdash  set a UA to avoid trivial blocking.\par
+92\endash 105: try block:\par
+93: r = requests.get(url, headers=headers, timeout=10) \emdash  GET the URL with 10s timeout.\par
+94: soup = BeautifulSoup(r.text, "html.parser") \emdash  parse HTML.\par
+96\endash 97: try to find <meta property="og:title"> for a canonical title; if not present, fall back to <title> text.\par
+99\endash 103: try to find an <article> tag; if found, collect text from its <p> children; otherwise collect text from all <p> tags on the page. Join paragraphs with spaces.\par
+104: return title.strip(), body.strip() \emdash  return a tuple (title, body) with whitespace trimmed.\par
+105\endash 106: on any exception, return ("", "").\par
+\par
+Lines 108\endash 121 \emdash  helper: verify with NewsAPI\par
+108: def verify_with_newsapi(query): \emdash  check NewsAPI for matching articles.\par
+109\endash 110: if NEWSAPI_KEY is falsy (not set), immediately return (False, None) \emdash  cannot verify without a key.\par
+111\endash 119: try to call NewsAPI:\par
+112: URL endpoint for NewsAPI everything.\par
+113: params includes q, language="en", pageSize=5. Note: query is passed as-is.\par
+114: resp = requests.get(..., headers=\{"X-Api-Key": NEWSAPI_KEY\}, timeout=10) \emdash  make request.\par
+115: data = resp.json() \emdash  parse JSON response.\par
+116\endash 118: if data["status"] == "ok" and totalResults > 0, take the first article and return (True, source_name).\par
+119\endash 121: on any exception/failure return (False, None).\par
+\par
+Lines 123\endash 139 \emdash  helper: strict_wiki_check (consistency with Wikipedia)\par
+123: def strict_wiki_check(claim, entities): \emdash  examine if claim contradicts simple Wikipedia facts.\par
+124: docstring.\par
+125\endash 131: For each person in entities["PERSON"], fetch Wikipedia summary. If summary exists, run two specific checks:\par
+\par
+If claim mentions "sri lanka" but the person\rquote s Wiki summary does not mention Sri Lanka \f4\u8594?\f1  \f0 return False (contradiction heuristic).\par
+\par
+If the person\f1\rquote\f0 s summary mentions "india" but the claim mentions "sri lanka" \f4\u8594?\f1  \f0 return False (another heuristic).\par
+These are very specific/heuristic checks (likely tailored to the author's use-cases).\par
+133\f1\endash 137: a small list of known false science myths (moon is hollow, earth is flat, sun rises in the west) \emdash  if claim includes one of these phrases \f4\u8594?\f1  \f0 return False.\par
+139: If none of the contradictions triggered, return True (claim consistent w/ checked knowledge).\par
+\par
+Lines 141\f1\endash 146 \emdash  helper: ML prediction\par
+141: def ml_predict(text): \emdash  wrapper to run the saved ML model (if present).\par
+142\endash 143: if model or vectorizer is missing, return None (can't predict).\par
+144: vec = vectorizer.transform([clean_text(text)]) \emdash  clean the text and vectorize it (note: vectorizer expects a list).\par
+145: return "Fake" if int(model.predict(vec)[0]) == 1 else "Real" \emdash  run model.predict, if predicted label 1 interpret as "Fake", else "Real". (Assumes the model outputs numeric labels where 1 means fake.)\par
+\par
+Lines 147\endash 161 \emdash  helper: NLI check\par
+147: def nli_check(text, candidate_labels=None): \emdash  call external NLI server to check entailment/contradiction.\par
+148: docstring says \ldblquote Call NLI server (non-blocking)\rdblquote  \emdash  note: the function uses requests.post which is synchronous, but with a short timeout (see below).\par
+149\endash 150: set default candidate_labels = ["true", "false"] if none provided.\par
+151\endash 156: try block that posts JSON \{"text": text, "candidate_labels": candidate_labels\} to NLI_SERVER with timeout=3 seconds.\par
+157\endash 158: if status 200 return resp.json() (expected to contain labels and scores).\par
+159\endash 160: except any error, swallow it and return None.\par
+161: function returns None if server not reachable or error occurred.\par
+\par
+Lines 163\endash 166 \emdash  Flask app setup\par
+163: comment separator.\par
+164: app = Flask(__name__) \emdash  create Flask app instance.\par
+165: app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER \emdash  configure upload folder in Flask config.\par
+\par
+Lines 167\endash 230 \emdash  Flask route / handler\par
+167: @app.route("/", methods=["GET", "POST"]) \emdash  register route for root "/", accepting GET and POST.\par
+168: def home(): \emdash  view function for homepage.\par
+169: Initialize multiple local variables to None (warning, extracted, translated, ml_result, final_result).\par
+170: entities, source_verified, nli_result = \{\}, None, None \emdash  defaults for other outputs.\par
+\par
+172: if request.method == "POST": \emdash  handle form submission (analysis) only on POST.\par
+\par
+173: user_text = (request.form.get("news_text") or "").strip() \emdash  get free-text input from form field news_text. Ensure non-None string and strip whitespace.\par
+174: user_url = (request.form.get("news_url") or "").strip() \emdash  get URL input news_url.\par
+175: file = request.files.get("news_image") \emdash  get uploaded file object (if any).\par
+\par
+177\endash 181: URL scraping\par
+178: if user_url: \emdash  if a URL was provided:\par
+179: title, body = scrape_url(user_url) \emdash  fetch title and page body via scrape_url.\par
+180: user_text = f"\{title\} \{body\}".strip() \emdash  set user_text to scraped text (title + body). This overrides any previously provided news_text.\par
+\par
+182\endash 191: OCR from uploaded image\par
+183: if file and file.filename: \emdash  if a file uploaded and filename not empty:\par
+184: filepath = os.path.join(app.config["UPLOAD_FOLDER"], secure_filename(file.filename)) \emdash  build safe filepath.\par
+185: file.save(filepath) \emdash  save uploaded file to disk.\par
+186\endash 190: try to run OCR:\par
+187: extracted = ocr_from_file(filepath) \emdash  extract text.\par
+188\endash 189: if extracted.strip() non-empty, override user_text with the OCR result (gives OCR precedence).\par
+190\endash 191: on exception, set warning to "OCR failed: \{e\}".\par
+\par
+193\endash 195: If after URL / OCR / form reading there is no user_text, set warning = "No text found to analyze." and immediately render the template index.html with that warning (early return).\par
+\par
+197\endash 199: Translation & entity extraction\par
+198: translated = translate_to_en(user_text) \emdash  translate to English (or return original if translator fails).\par
+199: entities = extract_entities(translated) \emdash  run SpaCy entity extraction on translated text.\par
+\par
+201\endash 203: ML prediction\par
+202: ml_result = ml_predict(translated) \emdash  run optional ML classifier (or None if model missing).\par
+\par
+204\endash 206: NewsAPI + Wikipedia checks\par
+205: verified, source = verify_with_newsapi(" ".join(translated.split()[:10])) \emdash  query NewsAPI with the first 10 words of translated text (simple quick query) and get verified boolean and source name.\par
+206: consistent = strict_wiki_check(translated, entities) \emdash  run the heuristic Wikipedia consistency checks.\par
+\par
+208\endash 211: Decide final_result based on verification + consistency\par
+208\endash 209: if verified True, then final_result = f"Real (verified via \{source\})" if consistent True else "Likely Fake (entity-role contradiction)".\par
+210\endash 211: else (not verified via NewsAPI): final_result = "Real (knowledge supported)" if consistent True else "Fake (contradicted by knowledge)".\par
+\par
+213\endash 219: Optional NLI check\par
+214: nli_result = nli_check(translated) \emdash  call NLI server (may return None).\par
+215\endash 219: if nli_result contains labels and scores arrays, take top label and score; if top label is "false" with score > 0.7, override final_result to "Fake (NLI contradiction detected)".\par
+\par
+221\endash 230: Render the template\par
+221\endash 230: return render_template("index.html", ...) \emdash  render index.html template passing all gathered variables (warning, extracted, translated, ml_result, final_result, entities, nli_result) for display in the UI.\par
+\par
+Lines 232\endash 233 \emdash  run the app\par
+232: if __name__ == "__main__": \emdash  standard Python guard to run the app when file executed directly.\par
+233: app.run(host="127.0.0.1", port=5000, debug=False) \emdash  start Flask dev server on localhost port 5000 with debugging turned off.\par
+\par
+Brief high-level summary / notes\par
+\par
+The app accepts three input types: raw text (news_text), a URL (news_url), or an uploaded image (news_image) from which it achieves text via OCR.\par
+\par
+It tries multiple signals to decide whether the claim is real/fake: optional ML classifier, NewsAPI evidence, simple Wikipedia-based heuristics, and an optional NLI server.\par
+\par
+Many checks are heuristic (e.g., specific "sri lanka" vs "india" checks and the small myth list) \emdash  useful but not comprehensive.\par
+\par
+The NLI call is labelled \ldblquote non-blocking\rdblquote  in the code docstring, but requests.post(..., timeout=3) is synchronous (it will block the current request up to 3 seconds). If you truly want non-blocking behavior you could run the NLI call in a background thread or async task and update the UI later.\par
+\par
+ML model and vectorizer are optional: the app will still run without them (it prints a warning and uses NewsAPI/Wiki).\f0\lang9\par
+}
+ 

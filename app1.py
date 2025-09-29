@@ -1,5 +1,5 @@
 """
-app.py - Fake News Detector (OCR + Translation + ML + NewsAPI + Wikipedia cross-check + Optional NLI)
+app.py - Fake News Detector (OCR + Translation + ML + NewsAPI + Wikipedia cross-check)
 
 Author: Shreekant Suman
 """
@@ -24,7 +24,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 NEWSAPI_KEY = os.getenv("NEWSAPI_KEY", "").strip()
 MODEL_PATH = "model.pkl"
 VECT_PATH = "vectorizer.pkl"
-NLI_SERVER = "http://127.0.0.1:5001/check"
 
 # Wikipedia API
 WIKI = wikipediaapi.Wikipedia(
@@ -111,7 +110,7 @@ def verify_with_newsapi(query):
     try:
         url = "https://newsapi.org/v2/everything"
         params = {"q": query, "language": "en", "pageSize": 5}
-        resp = requests.get(url, params=params, headers={"X-Api-Key": NEWSAPI_KEY}, timeout=10)
+        resp = requests.get(url, params=params, headers={"X-Api-Key": NEWSAPI_KEY})
         data = resp.json()
         if data.get("status") == "ok" and data.get("totalResults", 0) > 0:
             article = data["articles"][0]
@@ -131,10 +130,12 @@ def strict_wiki_check(claim, entities):
                 return False
 
     # Generic science myths
-    myths = ["moon is hollow", "earth is flat", "sun rises in the west"]
-    for myth in myths:
-        if myth in claim.lower():
-            return False
+    if "moon is hollow" in claim.lower():
+        return False
+    if "earth is flat" in claim.lower():
+        return False
+    if "sun rises in the west" in claim.lower():
+        return False
 
     return True
 
@@ -144,22 +145,6 @@ def ml_predict(text):
     vec = vectorizer.transform([clean_text(text)])
     return "Fake" if int(model.predict(vec)[0]) == 1 else "Real"
 
-def nli_check(text, candidate_labels=None):
-    """Call NLI server (non-blocking)"""
-    if candidate_labels is None:
-        candidate_labels = ["true", "false"]
-    try:
-        resp = requests.post(
-            NLI_SERVER,
-            json={"text": text, "candidate_labels": candidate_labels},
-            timeout=3
-        )
-        if resp.status_code == 200:
-            return resp.json()
-    except:
-        pass
-    return None
-
 # ---------------------- FLASK APP ----------------------
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -167,7 +152,7 @@ app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 @app.route("/", methods=["GET", "POST"])
 def home():
     warning, extracted, translated, ml_result, final_result = None, None, None, None, None
-    entities, source_verified, nli_result = {}, None, None
+    entities, source_verified = {}, None
 
     if request.method == "POST":
         user_text = (request.form.get("news_text") or "").strip()
@@ -194,40 +179,34 @@ def home():
             warning = "No text found to analyze."
             return render_template("index.html", warning=warning)
 
-        # Translate and extract entities
         translated = translate_to_en(user_text)
         entities = extract_entities(translated)
 
-        # ML Prediction
-        ml_result = ml_predict(translated)
-
-        # NewsAPI + Wiki check
+        # NewsAPI check
         verified, source = verify_with_newsapi(" ".join(translated.split()[:10]))
-        consistent = strict_wiki_check(translated, entities)
-
         if verified:
-            final_result = f"Real (verified via {source})" if consistent else "Likely Fake (entity-role contradiction)"
+            consistent = strict_wiki_check(translated, entities)
+            if not consistent:
+                final_result = "Likely Fake (entity-role contradiction)"
+            else:
+                final_result = f"Real (verified via {source})"
+            ml_result = ml_predict(translated)
         else:
-            final_result = "Real (knowledge supported)" if consistent else "Fake (contradicted by knowledge)"
+            # No NewsAPI support → rely on Wiki + ML
+            consistent = strict_wiki_check(translated, entities)
+            if consistent:
+                final_result = "Real (knowledge supported)"
+            else:
+                final_result = "Fake (contradicted by knowledge)"
+            ml_result = ml_predict(translated)
 
-        # Optional NLI check (non-blocking)
-        nli_result = nli_check(translated)
-        if nli_result and "labels" in nli_result and "scores" in nli_result:
-            top_label = nli_result["labels"][0].lower()
-            top_score = nli_result["scores"][0]
-            if top_label == "false" and top_score > 0.7:
-                final_result = "Fake (NLI contradiction detected)"
-
-    return render_template(
-        "index.html",
-        warning=warning,
-        extracted=extracted,
-        translated=translated,
-        ml_result=ml_result,
-        final_result=final_result,
-        entities=entities,
-        nli_result=nli_result
-    )
+    return render_template("index.html",
+                           warning=warning,
+                           extracted=extracted,
+                           translated=translated,
+                           ml_result=ml_result,
+                           final_result=final_result,
+                           entities=entities)
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=False)

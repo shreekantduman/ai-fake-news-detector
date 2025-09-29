@@ -1,0 +1,103 @@
+Script for Project Video: AI Fake News Detector
+1. Introduction (0:00 – 0:30)
+
+Visual: You on camera or project title slide.
+Dialogue:
+
+“Hello, my name is Shreekant Suman. In this video, I’ll be presenting my project: AI Fake News Detector. This system is designed to automatically detect fake news from text, URLs, or even images, using a combination of Machine Learning, NLP, OCR, and knowledge verification.”
+
+2. Motivation (0:30 – 1:00)
+
+Visual: Examples of fake news articles or social media screenshots.
+Dialogue:
+
+“With the rise of misinformation on social media, detecting fake news has become critical. Manual verification is slow and error-prone. This project aims to provide an automated, reliable, and multilingual tool to identify fake or misleading news.”
+
+3. Technologies Used (1:00 – 1:40)
+
+Visual: Show logos or brief list of technologies.
+Dialogue:
+
+“The project uses several technologies:
+
+Python and Flask for the web interface.
+
+OCR (pytesseract) to extract text from news images.
+
+Deep Translator for multilingual support.
+
+spaCy for Named Entity Recognition and text preprocessing.
+
+Machine Learning using scikit-learn to classify news as fake or real.
+
+Wikipedia API and NewsAPI for cross-verifying factual claims.
+
+Optional Hugging Face NLI server to detect contradictions in claims.”
+
+4. How It Works – Pipeline Overview (1:40 – 2:30)
+
+Visual: Flow diagram showing steps: Input → OCR → Translation → NLP → ML → Wiki/NewsAPI → Optional NLI → Result.
+Dialogue:
+
+“Here’s how the system works:
+
+Users can input text, a URL, or an image of a news article.
+
+If it’s an image, OCR extracts the text.
+
+The text is translated to English if needed and preprocessed.
+
+Named entities such as persons, organizations, or positions are extracted.
+
+The system checks the content against NewsAPI and Wikipedia to verify facts.
+
+A pre-trained ML model classifies the text as real or fake.
+
+Optionally, the NLI server evaluates the claim for contradictions, further refining the prediction.”
+
+5. Demonstration (2:30 – 4:00)
+
+Visual: Screen recording of the web app in action.
+Dialogue:
+
+“Let me show a demo. I’ll paste a news article text here, or upload an image of a news screenshot.
+The system first extracts and translates the text.
+Then it shows the ML prediction, the entity extraction, and cross-checks via Wikipedia and NewsAPI.
+If the NLI server is running, it also reports any contradictions detected.
+The final output combines all these checks to classify the news as real or fake.”
+
+6. Future Enhancements (4:00 – 4:30)
+
+Visual: List of enhancements on screen.
+Dialogue:
+
+“Future improvements could include:
+
+Using advanced transformer models for even better NLI accuracy.
+
+Supporting more languages for global news detection.
+
+Adding confidence scoring and explainable predictions for transparency.
+
+Integration with social media feeds for real-time detection.
+
+Developing a mobile application for easier access.”
+
+7. Conclusion (4:30 – 5:00)
+
+Visual: Project logo or “Thank You” slide.
+Dialogue:
+
+“In conclusion, the AI Fake News Detector provides a robust, automated approach to detect misinformation using multiple verification techniques. It demonstrates how OCR, NLP, ML, and knowledge APIs can be combined for real-world impact. Thank you for watching.”
+
+Tips for Recording
+
+Use screen recording software like OBS Studio or Camtasia to capture the demo.
+
+Keep visuals synchronized with your narration.
+
+Use high-quality audio and speak clearly.
+
+Keep the video around 5 minutes for conciseness.
+
+Highlight key features with annotations or arrows in your demo.
